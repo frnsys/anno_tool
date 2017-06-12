@@ -1,0 +1,243 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    html, body {
+      font-family: 'monospace';
+    }
+    * {
+        box-sizing: border-box;
+    }
+    body {
+        margin: 0 auto;
+        max-width: 1200px;
+    }
+    .browser {
+        width: 50%;
+        float: left;
+        position: relative;
+        background: #fff;
+    }
+    .browser > ul {
+        height: calc(100vh - 2em);
+        overflow-y: scroll;
+        padding: 0 2em;
+        margin: 2em 0 0 0;
+    }
+    .editor {
+        width: 50%;
+        float: left;
+        position: relative;
+    }
+    #save {
+        position: absolute;
+        right: 1em;
+        bottom: 1em;
+        background: blue;
+        color: #fff;
+        padding: 0.5em;
+        cursor: pointer;
+    }
+    textarea {
+        width: 100%;
+        height: 100vh;
+        padding: 1em;
+        border-top: none;
+        border-bottom: none;
+    }
+    .title {
+        line-height: 1.6;
+    }
+    .tag {
+        background: #ddd;
+        padding: 0.2em;
+        cursor: pointer;
+    }
+    .tag:hover {
+        background: #ccc;
+    }
+    .tag-selected {
+        cursor: not-allowed;
+    }
+    blockquote {
+        margin: 1em 0;
+        border-left: 6px solid #000;
+        padding-left: 1em;
+    }
+    .annos {
+        margin: 1em 0;
+    }
+    .note {
+        color: #fff;
+        background: #222;
+        padding: 0.4em;
+        word-break: break-all;
+    }
+    img {
+        max-height: 200px;
+        max-width: 100%;
+        margin-bottom: 1em;
+    }
+    a {
+        background: blue;
+        color: #fff;
+        padding: 0.2em;
+    }
+    .anno-id {
+        margin: 0;
+        color: #bbb;
+        display: inline;
+        cursor: pointer;
+    }
+    .source {
+        margin: 5em 0;
+    }
+    #controls {
+        position: absolute;
+        height: 2em;
+        top: 0;
+        left: 0;
+        right: 0;
+        padding: 0.5em;
+        text-align: center;
+        background: #fff;
+        border-bottom: 1px solid #aaa;
+    }
+  </style>
+</head>
+<body>
+<div class="browser">
+    <div id="controls">
+    </div>
+    <ul>
+        {% for url, data in annos.items() %}
+            <li class="source" data-url="{{ url }}">
+                <div class="title">
+                    <a href="{{ url }}">{{ data.title|safe }}</a>
+                    <span class="tags">
+                        {% for tag in data.tags %}
+                            <span class="tag" data-tag="{{ tag }}">{{ tag }}</span>
+                        {% endfor %}
+                    </span>
+                </div>
+                {% for note in data.notes %}
+                    <p class="note">{{ note }}</p>
+                {% endfor %}
+                {% for url in data.urls %}
+                    <img src="{{ url }}">
+                {% endfor %}
+                <ul class="annos">
+                    {% for id, anno in data.annos.items() %}
+                        <li data-id="{{ id }}" >
+                            <blockquote>{{ anno.target.selector[-1].exact }} <h6 class="anno-id">[{{ id }}]</h6></blockquote>
+                            {% if anno.text %}
+                                <p class="note">{{ anno.text }}</p>
+                            {% endif %}
+                            {% for url in anno.urls %}
+                                <img src="{{ url }}">
+                            {% endfor %}
+                            {% if anno.tags %}
+                                <div class="tags">
+                                    {% for tag in anno.tags %}
+                                        <span class="tag" data-tag="{{ tag }}">{{ tag }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </li>
+        {% endfor %}
+    </ul>
+</div>
+<div class="editor">
+    <textarea id="notes" placeholder="Notes">{{ notes }}</textarea>
+    <div id="save">Save</div>
+</div>
+
+<script>
+var data = {
+    {% for url, data in annos.items() %}
+        '{{ url }}': {{ data.tags|safe }},
+    {% endfor %}
+};
+var tags = [];
+
+function render() {
+    Object.keys(data).forEach(k => {
+        var s = document.querySelector(`[data-url="${k}"]`);
+        if (tags.length == 0 || tags.every(t => data[k].includes(t))) {
+            s.style.display = 'block';
+        } else {
+            s.style.display = 'none';
+        }
+    });
+    document.getElementById('controls').innerHTML = tags.map(
+        t => `<span class="tag-selected" data-tag="${t}">${t}</span>`).join(', ');
+}
+
+document.getElementById('save').addEventListener('click', function() {
+  var notes = document.getElementById('notes').value;
+  fetch('/', {
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    },
+    method: 'post',
+    body: JSON.stringify({
+        'notes': notes
+    })
+  })
+  .then(resp => {
+    var el = document.body;
+    el.style.background = 'forestgreen';
+    setTimeout(function() {
+        el.style.background = 'none';
+    }, 1000);
+  })
+});
+
+// unselect tags
+document.getElementById('controls').addEventListener('click', e => {
+    if (e.target.className == 'tag-selected') {
+        var tag = e.target.dataset.tag,
+            idx = tags.indexOf(tag);
+        tags.splice(idx, 1);
+        render();
+    }
+});
+
+// select tags
+Array.from(document.getElementsByClassName('tag'), el => {
+    el.addEventListener('click', function() {
+        var tag = el.dataset.tag;
+        if (!tags.includes(tag)) {
+            tags.push(tag);
+            render();
+        }
+    });
+});
+
+function selectText(el) {
+    if (document.selection) {
+        var range = document.body.createTextRange();
+        range.moveToElementText(el);
+        range.select();
+    } else if (window.getSelection) {
+        var range = document.createRange();
+        range.selectNode(el);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+    }
+    document.execCommand('copy');
+}
+
+Array.from(document.getElementsByClassName('anno-id'), el => {
+    el.addEventListener('click', function() {
+        selectText(el);
+    });
+});
+</script>
+
+</body>
+</html>
