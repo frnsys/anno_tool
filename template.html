@@ -98,16 +98,25 @@
         top: 0;
         left: 0;
         right: 0;
-        padding: 0.5em;
+        padding: 0.2em;
         text-align: center;
         background: #fff;
         border-bottom: 1px solid #aaa;
+        display: flex;
+    }
+    #controls-tags, #controls-search {
+        flex: 1;
+    }
+    #controls-tags {
+        padding: 0.3em 0;
     }
   </style>
 </head>
 <body>
 <div class="browser">
     <div id="controls">
+        <div id="controls-tags"></div>
+        <input id="controls-search" type="text" placeholder="Search">
     </div>
     <ul>
         {% for url, data in annos.items() %}
@@ -155,26 +164,49 @@
     <div id="save">Save</div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.10.1/mark.min.js"></script>
 <script>
+var mark = new Mark(document.querySelector('.browser'));
 var data = {
     {% for url, data in annos.items() %}
         '{{ url }}': {{ data.tags|safe }},
     {% endfor %}
 };
 var tags = [];
+var query = '';
 
 function render() {
     Object.keys(data).forEach(k => {
         var s = document.querySelector(`[data-url="${k}"]`);
-        if (tags.length == 0 || tags.every(t => data[k].includes(t))) {
+        if ((tags.length == 0 || tags.every(t => data[k].includes(t))) && (query.length == 0 || s.textContent.toLowerCase().includes(query))) {
             s.style.display = 'block';
+            Array.from(s.querySelectorAll(':scope > .annos li'), el => {
+                if (query.length == 0 || el.textContent.toLowerCase().includes(query)) {
+                    el.style.display = 'block';
+                } else {
+                    el.style.display = 'none';
+                }
+            });
         } else {
             s.style.display = 'none';
         }
     });
-    document.getElementById('controls').innerHTML = tags.map(
+    document.getElementById('controls-tags').innerHTML = tags.map(
         t => `<span class="tag-selected" data-tag="${t}">${t}</span>`).join(', ');
 }
+
+
+document.getElementById('controls-search').addEventListener('keyup', function(e) {
+    if (e.key == 'Enter') {
+        query = e.target.value;
+        mark.unmark({
+            done: function(){
+                mark.mark(query);
+            }
+        });
+        render();
+    }
+});
 
 document.getElementById('save').addEventListener('click', function() {
   var notes = document.getElementById('notes').value;
@@ -198,7 +230,7 @@ document.getElementById('save').addEventListener('click', function() {
 });
 
 // unselect tags
-document.getElementById('controls').addEventListener('click', e => {
+document.getElementById('controls-tags').addEventListener('click', e => {
     if (e.target.className == 'tag-selected') {
         var tag = e.target.dataset.tag,
             idx = tags.indexOf(tag);
