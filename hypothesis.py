@@ -35,7 +35,7 @@ def screenshot(url, path):
 if __name__ == '__main__':
     resp = _request('/profile')
     user = resp.json()
-    group_id = next(g for g in user['groups'] if g['name'] == 'psyops')['id']
+    group_id = next(g for g in user['groups'] if g['name'] == config.GROUP)['id']
     resp = _request('/search', {
         'limit': 200,
         'user': user['userid'],
@@ -70,11 +70,12 @@ if __name__ == '__main__':
             if t not in annos[uri]['tags']:
                 annos[uri]['tags'].append(t)
     print('uris:', len(annos))
-    print('screenshotting...')
-    for uri in annos.keys():
-        hash = hashlib.md5(uri.encode('utf-8')).hexdigest()
-        try:
-            screenshot(uri, 'shots/{}.png'.format(hash))
-        except TimeoutException:
-            print('failed to get screenshot for:', uri)
+    if config.SCREENSHOT:
+        print('screenshotting...')
+        for uri in annos.keys():
+            hash = hashlib.md5(uri.encode('utf-8')).hexdigest()
+            try:
+                screenshot(uri, 'shots/{}.png'.format(hash))
+            except TimeoutException:
+                print('failed to get screenshot for:', uri)
     json.dump(annos, open('annos.json', 'w'), sort_keys=True, indent=2)
